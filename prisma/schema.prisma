@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserType {
+  SUPER_ADMIN
+  OEM
+  TECHNICIAN
+  SERVICE_AGENCY
+  END_USER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model Role {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  users User[] // ✅ reverse relation required by Prisma 6
+}
+
+model OemAccount {
+  id             String   @id @default(uuid())
+  company_name   String
+  gst_number     String
+  contact_email  String
+  support_number String
+  address        String
+  created_by     String
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  users User[] // ✅ reverse relation required by Prisma 6
+}
+
+model ServiceAgency {
+  id             String   @id @default(uuid())
+  agency_name    String
+  location       String
+  contact_email  String
+  contact_number String
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  users User[] // ✅ reverse relation required by Prisma 6
+}
+
+model User {
+  id                String     @id @default(uuid())
+  name              String
+  email             String     @unique
+  phone             String
+  password     String
+  user_type         UserType
+  role_id           Int
+  oem_account_id    String?    @db.VarChar(36)
+  service_agency_id String?    @db.VarChar(36)
+  status            UserStatus @default(ACTIVE)
+  created_at        DateTime   @default(now())
+  updated_at        DateTime   @updatedAt
+
+  // Relations
+  role          Role           @relation(fields: [role_id], references: [id])
+  oemAccount    OemAccount?    @relation(fields: [oem_account_id], references: [id])
+  serviceAgency ServiceAgency? @relation(fields: [service_agency_id], references: [id])
+}
