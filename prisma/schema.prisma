@@ -15,61 +15,258 @@ enum UserType {
   END_USER
 }
 
+
 enum UserStatus {
   ACTIVE
   INACTIVE
   SUSPENDED
 }
 
-model Role {
-  id   Int    @id @default(autoincrement())
-  name String @unique
-
-  users User[] // ✅ reverse relation required by Prisma 6
-}
-
 model OemAccount {
-  id             String   @id @default(uuid())
+  id             String     @id @default(uuid())
   company_name   String
   gst_number     String
   contact_email  String
   support_number String
   address        String
   created_by     String
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  created_at     DateTime   @default(now())
+  updated_at     DateTime   @updatedAt
 
-  users User[] // ✅ reverse relation required by Prisma 6
+  users          User[]     // Reverse relation
+  warrantyPolicies WarrantyPolicy[]
+    products Product[]
+  amcPlans   AmcPlan[]
 }
 
 model ServiceAgency {
-  id             String   @id @default(uuid())
+  id             String     @id @default(uuid())
   agency_name    String
   location       String
   contact_email  String
   contact_number String
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
-
-  users User[] // ✅ reverse relation required by Prisma 6
+  created_at     DateTime   @default(now())
+  updated_at     DateTime   @updatedAt
+  users          User[]     // Reverse relation
+  TechnicianProfile TechnicianProfile[]
 }
-
 model User {
-  id                String     @id @default(uuid())
+  id                String              @id @default(uuid())
   name              String
-  email             String     @unique
+  email             String              @unique
   phone             String
-  password     String
+  password          String
   user_type         UserType
   role_id           Int
-  oem_account_id    String?    @db.VarChar(36)
-  service_agency_id String?    @db.VarChar(36)
-  status            UserStatus @default(ACTIVE)
-  created_at        DateTime   @default(now())
-  updated_at        DateTime   @updatedAt
+  oem_account_id    String?
+  service_agency_id String?
+  status            UserStatus          @default(ACTIVE)
+  created_at        DateTime            @default(now())
+  updated_at        DateTime            @updatedAt
 
   // Relations
-  role          Role           @relation(fields: [role_id], references: [id])
-  oemAccount    OemAccount?    @relation(fields: [oem_account_id], references: [id])
-  serviceAgency ServiceAgency? @relation(fields: [service_agency_id], references: [id])
+  role              Role                @relation(fields: [role_id], references: [id])
+  oemAccount        OemAccount?         @relation(fields: [oem_account_id], references: [id])
+  serviceAgency     ServiceAgency?      @relation(fields: [service_agency_id], references: [id])
+
+  technicianProfile TechnicianProfile?
+  endUserProfile    EndUserProfile?
+  oemUserProfile    OemUserProfile?
 }
+
+
+model Role {
+  id              Int                  @id @default(autoincrement())
+  name            String               
+  oem_account_id  String?              @db.VarChar(36)
+
+  users           User[]               // Reverse relation
+  roleFeatureAccesses RoleFeatureAccess[]
+}
+
+model Feature {
+  id                  Int                 @id @default(autoincrement())
+  code                String              @unique
+  module              String
+
+  roleFeatureAccesses RoleFeatureAccess[]
+}
+
+model RoleFeatureAccess {
+  id         Int        @id @default(autoincrement())
+  roleId     Int
+  featureId  Int
+  accessType AccessType
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  feature    Feature    @relation(fields: [featureId], references: [id])
+
+  @@unique([roleId, featureId])
+  @@map("role_feature_accesses")
+}
+
+model TechnicianProfile {
+  userId           String        @id
+  skills           String?       // Comma-separated list
+  certifications   String?       // Optional text
+  assignedAgencyId String?
+
+  user             User          @relation(fields: [userId], references: [id])
+  assignedAgency   ServiceAgency? @relation(fields: [assignedAgencyId], references: [id])
+
+  @@map("technician_profiles")
+}
+
+
+model EndUserProfile {
+  userId        String    @id
+  address       String?
+  familyId      Int?      // Optional grouping
+  referralCode  String?
+
+  user          User      @relation(fields: [userId], references: [id])
+
+  @@map("end_user_profiles")
+}
+
+model OemUserProfile {
+  userId      String    @id
+  designation String?
+  employeeId  String?
+
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@map("oem_user_profiles")
+}
+
+enum AccessType {
+  READ
+  WRITE
+  MANAGE
+}
+
+enum WarrantyType {
+  STANDARD
+  EXTENDED
+}
+
+enum WarrantyTrigger {
+  PURCHASE_DATE
+  INSTALLATION_DATE
+}
+
+model ProductCategory {
+  id          Int                @id @default(autoincrement()) @map("category_id")
+  parent_id   Int?               @map("parent_id")
+  name        String
+  description String?
+
+  parent      ProductCategory?   @relation("CategoryParent", fields: [parent_id], references: [id])
+  children    ProductCategory[]  @relation("CategoryParent")
+
+  products    Product[]
+  amcPlans    AmcPlan[]
+}
+
+
+model Product {
+  id             Int              @id @default(autoincrement())
+  oem_account_id String           @map("oem_account_id")
+  name           String
+  category_id    Int
+  specifications String?
+  model_no       String
+  created_at     DateTime         @default(now())
+
+  oemAccount     OemAccount       @relation(fields: [oem_account_id], references: [id])
+  category       ProductCategory  @relation(fields: [category_id], references: [id])
+
+  variants       ProductVariant[]
+  warrantyPolicies WarrantyPolicy[]
+}
+
+model ProductVariant {
+  id                 Int              @id @default(autoincrement()) @map("variant_id")
+  product_id         Int
+  sku_code           String
+  model_no           String
+  variant_name       String
+  attributes_json    Json
+  dealer_price       Float
+  MRP                Float
+  warranty_months    Int
+  amc_available      Boolean
+  refundable         Boolean
+  launch_date        DateTime
+  discontinued_date  DateTime?
+  bar_code           String
+  image_url          String?
+
+  product            Product          @relation(fields: [product_id], references: [id])
+  warrantyPolicies   WarrantyPolicy[]
+  amcPlans           AmcPlan[]
+}
+
+model WarrantyPolicy {
+  id               Int              @id @default(autoincrement())
+  oem_account_id   String
+  policy_name      String
+  description      String?
+  is_transferable  Boolean
+  product_id       Int
+  variant_id       Int
+  category_ids     Json
+  duration_months  Int
+  coverage_details String
+  terms_json       Json
+  type             WarrantyType
+  trigger          WarrantyTrigger
+  set_conditions   String?
+  price            Float
+  start_date       DateTime
+  end_date         DateTime
+
+  oemAccount       OemAccount       @relation(fields: [oem_account_id], references: [id])
+  product          Product          @relation(fields: [product_id], references: [id])
+  variant          ProductVariant   @relation(fields: [variant_id], references: [id])
+}
+
+model AmcPlan {
+  id               Int              @id @default(autoincrement())
+  oem_id           String
+  description      String
+  variant_id       Int
+  category_id      Int
+  category_ids     Json
+  plan_name        String
+  price            Float
+  duration_months  Int
+  benefits_json    Json
+  active           Boolean
+  renewal_options  String?
+  eligibility      String
+  start_date       DateTime
+  end_date         DateTime
+
+  oemAccount       OemAccount       @relation(fields: [oem_id], references: [id])
+  variant          ProductVariant   @relation(fields: [variant_id], references: [id])
+  category         ProductCategory  @relation(fields: [category_id], references: [id])
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

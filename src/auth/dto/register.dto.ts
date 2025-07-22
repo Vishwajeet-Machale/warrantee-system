@@ -1,25 +1,5 @@
-// import { IsEmail, IsNotEmpty, IsPhoneNumber, isPhoneNumber, MinLength } from 'class-validator';
-
-// export class RegisterDto {
-//   @IsNotEmpty()
-//   name: string;
-
-//   @IsEmail()
-//   email: string;
-
-//   @MinLength(6)
-//   password: string;
-
-//   @IsNotEmpty()
-//   phone: string;
-
-//   @IsNotEmpty()
-//   roleId: number;
-// }
-
-
 import { IsInt, IsString, IsOptional, IsEmail, IsEnum, IsNotEmpty, IsPhoneNumber, MinLength } from 'class-validator';
-import { UserType } from '@prisma/client'; // or define enum manually
+import { UserType } from '@prisma/client'; 
 
 
 

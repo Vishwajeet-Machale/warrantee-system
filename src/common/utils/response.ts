@@ -1,4 +1,3 @@
-// src/common/response.ts
 export class ApiResponse {
   static success(message: string, data: any = null, token?: string) {
     const response: any = {
