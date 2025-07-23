@@ -8,6 +8,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateOemDto } from './dto/create-oem.dto';
 import * as bcrypt from 'bcrypt';
 import { UserType } from '@prisma/client';
+import { UpdateRolePermissionDto } from './dto/update-role-permission.dto';
+import { CreateRoleDto } from './dto/create-role.dto';
 
 @Injectable()
 export class OemService {
@@ -101,5 +103,189 @@ export class OemService {
       throw new InternalServerErrorException('Error creating OEM');
     }
   }
+
+  async updateRolePermissions(dto: UpdateRolePermissionDto) {
+  const { roleId, features } = dto;
+
+  const role = await this.prisma.role.findUnique({
+    where: { id: roleId },
+  });
+
+  if (!role) {
+    throw new BadRequestException('Role not found');
+  }
+
+  //  Delete old permissions not in the incoming feature list
+    const featureIds = features.map((f) => f.featureId);
+
+    await this.prisma.roleFeatureAccess.deleteMany({
+      where: {
+        roleId,
+        featureId: {
+          notIn: featureIds,
+        },
+      },
+    });
+
+  // Update or insert feature permissions
+  for (const feature of features) {
+    await this.prisma.roleFeatureAccess.upsert({
+      where: {
+        roleId_featureId: {
+          roleId,
+          featureId: feature.featureId,
+        },
+      },
+      update: {
+        accessType: feature.accessType,
+      },
+      create: {
+        roleId,
+        featureId: feature.featureId,
+        accessType: feature.accessType,
+      },
+    });
+  }
+
+  // Step 3: Fetch updated feature names
+  const updatedFeatureAccesses = await this.prisma.roleFeatureAccess.findMany({
+    where: { roleId },
+    include: {
+      feature: true,
+    },
+  });
+
+  const featureNames = updatedFeatureAccesses.map((access) => access.feature);
+
+  // Final response
+  return {
+      role: {
+        role_id: role.id,
+        role_name: role.name,
+      },
+      features: featureNames,
+    }
+}
+
+ async updateAdminRolePermissions(dto: UpdateRolePermissionDto) {
+  const { roleId, features } = dto;
+
+  const role = await this.prisma.role.findUnique({
+    where: { id: roleId },
+  });
+
+  if (!role) {
+    throw new BadRequestException('Role not found');
+  }
+
+  //  Delete old permissions not in the incoming feature list
+    const featureIds = features.map((f) => f.featureId);
+
+    await this.prisma.roleFeatureAccess.deleteMany({
+      where: {
+        roleId,
+        featureId: {
+          notIn: featureIds,
+        },
+      },
+    });
+
+  // Update or insert feature permissions
+  for (const feature of features) {
+    await this.prisma.roleFeatureAccess.upsert({
+      where: {
+        roleId_featureId: {
+          roleId,
+          featureId: feature.featureId,
+        },
+      },
+      update: {
+        accessType: feature.accessType,
+      },
+      create: {
+        roleId,
+        featureId: feature.featureId,
+        accessType: feature.accessType,
+      },
+    });
+  }
+
+  // Step 3: Fetch updated feature names
+  const updatedFeatureAccesses = await this.prisma.roleFeatureAccess.findMany({
+    where: { roleId },
+    include: {
+      feature: true,
+    },
+  });
+
+  const featureNames = updatedFeatureAccesses.map((access) => access.feature);
+
+  // Final response
+  return {
+      role: {
+        role_id: role.id,
+        role_name: role.name,
+      },
+      features: featureNames,
+    }
+}
+
+async createRole(dto: CreateRoleDto) {
+  const { name, oem_account_id, features } = dto;
+
+  // 1. Check for existing role
+  const existing = await this.prisma.role.findFirst({
+    where: { name, oem_account_id },
+  });
+
+  if (existing) {
+    throw new ConflictException('Role with this name already exists for the OEM');
+  }
+
+  // 2. Create new role
+  const role = await this.prisma.role.create({
+    data: {
+      name,
+      oem_account_id,
+    },
+  });
+
+  // 3. Assign features
+  await this.prisma.roleFeatureAccess.createMany({
+    data: features.map((f) => ({
+      roleId: role.id,
+      featureId: f.featureId,
+      accessType: f.accessType,
+    })),
+  });
+
+  // 4. Fetch populated role with feature codes
+  const fullRole = await this.prisma.role.findUnique({
+    where: { id: role.id },
+    include: {
+      roleFeatureAccesses: {
+        include: {
+          feature: true,
+        },
+      },
+    },
+  });
+
+  if (!fullRole) {
+  throw new InternalServerErrorException('Role created but failed to retrieve full role details.');
+}
+
+  // 5. Format response
+  const featureList = fullRole.roleFeatureAccesses.map((f) => f.feature.code);
+
+  return {
+    role: {
+      role_id: role.id,
+      role_name: role.name,
+    },
+    features: featureList,
+  };
+}
+
 }
 

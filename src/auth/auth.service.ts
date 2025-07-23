@@ -44,10 +44,26 @@ export class AuthService {
 
   async login(@Body() dto: LoginDto) {
     try {
+      // const user = await this.prisma.user.findUnique({
+      //   where: { email: dto.email },
+      //   include: { role: true },
+      // });
+
       const user = await this.prisma.user.findUnique({
-        where: { email: dto.email },
-        include: { role: true },
-      });
+  where: { email: dto.email },
+  include: {
+    role: {
+      include: {
+        roleFeatureAccesses: {
+          include: {
+            feature: true, // 💡 this is required to get feature.code
+          },
+        },
+      },
+    },
+  },
+});
+
 
       if (!user || !(await bcrypt.compare(dto.password, user.password))) {
         throw new UnauthorizedException('Invalid credentials');
@@ -65,9 +81,32 @@ export class AuthService {
     }
   }
 
+  // private async generateToken(user: any) {
+  //   const payload = { email: user.email, sub: user.id, role: user.role.name };
+  //   const access_token = this.jwtService.sign(payload);
+  //   return { access_token };
+  // }
+
   private async generateToken(user: any) {
-    const payload = { email: user.email, sub: user.id, role: user.role.name };
-    const access_token = this.jwtService.sign(payload);
-    return { access_token };
-  }
+    console.log("user", user);
+  const permissions = user.role.roleFeatureAccesses.map((access) => ({
+    feature: access.feature.code,
+    access: access.accessType,
+  }));
+
+  const payload = {
+    id: user.id,
+    email: user.email,
+    oem_account_id: user.oem_account_id,
+    service_agency_id: user.service_agency_id,
+    user_type: user.user_type,
+    role: user.role.name,
+    role_id: user.role_id, 
+    permissions,
+  };
+
+  const access_token = this.jwtService.sign(payload);
+  return { access_token };
+}
+
 }
